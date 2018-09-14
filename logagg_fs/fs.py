@@ -29,7 +29,7 @@ class TrackList:
 
     def update(self):
         '''
-        make a set of files from state file
+        Update the self.fpaths based on the state file (tracklist.txt)
         '''
 
         fh = open(self.state_file)
@@ -41,16 +41,16 @@ class TrackList:
             for fpath in glob.glob(pattern[:-1]):
                 fpaths[fpath] = None
 
-        # Chen new fpaths to ones ones and modify
+        # Add new found paths to fpaths
         for path in fpaths:
-
             if path not in self.fpaths: self.fpaths[path] = fpaths[path]
 
-        for path in self.fpaths:
-
+        # Delete paths that are no more there
+        keys = list(self.fpaths.keys())
+        for path in keys:
             if path not in fpaths: self.fpaths.pop(path)
 
-        self.log.debug('checking_state_file_for_changes', tracked_files=self.fpaths)
+        self.log.debug('updating_state_file_for_changes', tracked_files=self.fpaths)
         fh.close()
 
 
@@ -70,14 +70,12 @@ class LogaggFSFile(MirrorFSFile):
 
         self.full_path = self.mountpoint + self.frompath
 
-        if self.full_path in self.tracklist.fpaths and self.tracklist.fpaths[self.full_path] is None:
-            #import pdb; pdb.set_trace()
-            self.tracklist.fpaths[self.full_path] = RotatingFile(
-                                                        self.tracklist.directory,
-                                                        self._compute_hash(self.full_path)
-                                                        )
 
     def _compute_hash(self, fpath):
+        '''
+        Given a file-path compute md5 hash for it
+        '''
+
         fpath = fpath.encode("utf-8")
         hash_fpath = md5(fpath).hexdigest()
         return(hash_fpath)
@@ -85,8 +83,23 @@ class LogaggFSFile(MirrorFSFile):
 
     @logit
     def write(self, buf, offset):
+        '''
+        Override the the write functionality to write buffer in rotating files
+        in rotaiting files in cache dir
+        '''
+
+        # Write buffer into the file
         self.file.seek(offset)
         self.file.write(buf)
+
+        # Create a rotating file object if not present
+        # Store it in tracklist dict
+        if self.full_path in self.tracklist.fpaths and self.tracklist.fpaths[self.full_path] is None:
+            self.tracklist.fpaths[self.full_path] = RotatingFile(self.tracklist.directory,
+                                                            self._compute_hash(self.full_path)
+                                                            )
+
+        # Check for a rotating file object there for fpath or not
         if self.tracklist.fpaths.get(self.full_path):
             self.log.debug('writing_to_rotating_file', file=self.tracklist.fpaths[self.full_path])
             self.tracklist.fpaths[self.full_path].write(buf)
