@@ -9,6 +9,7 @@ import glob
 from basescript import init_logger
 from deeputil import Dummy
 from deeputil import AttrDict
+from deeputil import ExpiringCache
 
 import fuse
 from fuse import Fuse
@@ -63,11 +64,8 @@ class LogaggFSFile(MirrorFSFile):
     @logit
     # FIXME: take path also as parameter
     def __init__(self, *args, **kwargs):
+
         super().__init__( *args, **kwargs)
-
-        if self.frompath == "/.update":
-            self.tracklist.update()
-
         self.full_path = self.mountpoint + self.frompath
 
 
@@ -87,6 +85,11 @@ class LogaggFSFile(MirrorFSFile):
         Override the the write functionality to write buffer in rotating files
         in rotaiting files in cache dir
         '''
+
+        # Update tracklist if clock expired
+        if not self.clock.get('timeout'):
+            self.tracklist.update()
+            self.clock.put('timeout', 'no')
 
         # Write buffer into the file
         self.file.seek(offset)
@@ -145,6 +148,12 @@ class RotatingFile:
 
 
 class LogaggFuseRunner:
+    '''
+    Initializes and runs LogaggFs file system
+    '''
+
+    TRACKFILES_REFRESH_INTERVAL = 30 # Seconds after which data inside trackfiles.txt is read regularly
+
     def __init__(self):
         self.opts = None
         self.args = None
@@ -156,6 +165,10 @@ class LogaggFuseRunner:
         self.log = Dummy()
 
     def _mkdir_logdir(self, parent_directory):
+        '''
+        Make logcache/logs dir if not present
+        '''
+        # FIXME: use logagg_utils ensure_dir func
 
         log_dir = os.path.abspath(os.path.join(parent_directory,
                                 "logs"))
@@ -165,6 +178,9 @@ class LogaggFuseRunner:
         return log_dir
 
     def _touch_statefile(self, parent_directory):
+        '''
+        Touch logcache/trackfiles.txt filr if not there
+        '''
 
         state_file = os.path.abspath(os.path.join(parent_directory,
                                 "trackfiles.txt"))
@@ -174,11 +190,10 @@ class LogaggFuseRunner:
         return state_file
 
     def runfs(self):
-        usage = """
-    Logagg Log collection FUSE filesystem
-
-    """ + Fuse.fusage
-        #argument parsing
+        usage = '''
+        Logagg Log collection FUSE filesystem
+        ''' + Fuse.fusage
+        # Argument parsing
         server = LogaggFS(version="%prog " + fuse.__version__,
                      usage=usage,
                      dash_s_do='setsingle',
@@ -225,11 +240,17 @@ class LogaggFuseRunner:
         self.log_dir = self._mkdir_logdir(parent_directory=self.log_cache_dir)
         self.state_file = self._touch_statefile(parent_directory=self.log_cache_dir)
 
-        # create tracklist for monitoring log files
+        # Create tracklist for monitoring log files
         tracklist = TrackList(state_file=self.state_file,
                         directory=self.log_dir,
                         log=self.log)
         LogaggFSFile.tracklist = tracklist
+
+        # LRU cache that expires in TRACKFILES_REFRESH_INTERVAL sec(s)
+        clock = ExpiringCache(1, default_timeout=self.TRACKFILES_REFRESH_INTERVAL)
+        clock.put('timeout', 'no')
+        LogaggFSFile.clock = clock
+
         LogaggFSFile.mountpoint = server.fuse_args.mountpoint
 
         server.main()

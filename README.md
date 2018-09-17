@@ -130,10 +130,10 @@ $ # The same as:
 $ ls /logcache/mirror/
 ```
 ```bash=
-$ cat /logcache/mirror/.update
-cat: /logcache/mirror/.update: No such file or directory
-$ echo "testing.." > /var/log/.update
-$ cat /logcache/mirror/.update
+$ cat /logcache/mirror/test
+cat: /logcache/mirror/test: No such file or directory
+$ echo "testing.." > /var/log/test
+$ cat /logcache/mirror/test
 testing..
 ```
 
@@ -142,12 +142,12 @@ Check caching of log files
 $ ls /logcache/logs/ # No logs yet
 $ # Now add the files to be tracked in logcache/trackfiles.txt file
 $ echo "/var/log/syslog" >> /logcache/trackfiles.txt
-$ touch /var/log/.update # Do this a couple of times to update state
+$ # Takes atmost 10sec to update state
 $ ls /logcache/logs/ # To see the cached log-files
 f5fdf6ea0ea92860c6a6b2b354bfcbbc.1536590719.4519932.log
 $ tail -f /logcache/logs/* # The contents of the file are being written simultaneously to cached files
 ```
-* Just remove the file pattern from `/logcache/trackfiles.txt` and `touch /var/log/.update`  to stop caching of logs
+* Just remove the file pattern from `/logcache/trackfiles.txt` to stop caching of logs
 
 * To unmount directory
 ```bash=
