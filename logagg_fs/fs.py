@@ -87,6 +87,7 @@ class LogaggFSFile(MirrorFSFile):
         '''
 
         # Update tracklist if clock expired
+        self.log.debug('clock_status', clock=self.clock.get('timeout'))
         if not self.clock.get('timeout'):
             self.tracklist.update()
             self.clock.put('timeout', 'no')
@@ -97,6 +98,7 @@ class LogaggFSFile(MirrorFSFile):
 
         # Create a rotating file object if not present
         # Store it in tracklist dict
+        self.log.debug('tracklist_status', tracklist=self.tracklist.fpaths)
         if self.full_path in self.tracklist.fpaths and self.tracklist.fpaths[self.full_path] is None:
             self.tracklist.fpaths[self.full_path] = RotatingFile(self.tracklist.directory,
                                                             self._compute_hash(self.full_path)
